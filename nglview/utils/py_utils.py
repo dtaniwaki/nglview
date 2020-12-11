@@ -7,6 +7,10 @@ from contextlib import contextmanager
 from shutil import rmtree
 from zipfile import ZipFile
 
+from jupyter_core.paths import jupyter_config_dir
+from traitlets.config import Config
+from traitlets.config.manager import BaseJSONConfigManager
+
 from ..data_source import DatasourceRegistry
 
 __all__ = [
@@ -185,7 +189,17 @@ class FileManager:
         """prepare content to send to NGL
         """
         if self.use_filename and not force_buffer:
-            return os.path.relpath(self.src)
+            c = _get_notebook_config()
+            # FIXME: notebook_dir changes in lab.
+            notebook_dir = c.get('notebook_dir', ".")
+            base_url = c.get("base_url", "/")
+
+            file_path = os.path.abspath(os.path.join(os.getcwd(), self.src))
+            notebook_dir_path = os.path.abspath(notebook_dir)
+            if os.path.commonprefix([file_path, notebook_dir_path]) != notebook_dir_path:
+                raise ValueError("Invalid file path")
+            relpath = os.path.relpath(file_path, notebook_dir_path)
+            return base_url + "/".join(["files", relpath])
         else:
             if self.compressed_ext:
                 return self.unzip_backend[self.compressed_ext].open(
@@ -265,3 +279,10 @@ class FileManager:
                   [f"{k}://" for k in DatasourceRegistry.sources]
         return (isinstance(self.src, str)
                 and self.src.startswith(tuple(url_ext)))
+
+
+def _get_notebook_config():
+    cm = BaseJSONConfigManager(config_dir=jupyter_config_dir())
+    config_basename = 'jupyter_notebook_config'
+    config = Config(cm.get(config_basename))
+    return config.get('NotebookApp', Config())

@@ -2,6 +2,7 @@ import gzip
 import os
 
 import pytest
+from mock import MagicMock, patch
 
 import nglview
 from nglview.utils import js_utils, py_utils
@@ -98,7 +99,10 @@ def test_file_current_folder():
 
     assert fh.ext.endswith('pdb')
     assert fh.is_filename
-    assert fh.read() == os.path.relpath(fh.src)
+    assert fh.read() == "/files/" + os.path.relpath(fh.src)
+
+    with patch("nglview.utils.py_utils._get_notebook_config", return_value={"base_url": "/x/"}) as mock_config:
+        assert fh.read() == "/x/files/" + os.path.relpath(fh.src)
 
     with open(src) as src2:
         fh2 = FileManager(src2)
